@@ -1,0 +1,75 @@
+Predicting 
+jinjinfu
+
+December 21, 2017
+
+Description
+In this paper we explore various methods to predict which form 5 people used in doing barbell curls. We build a model based on training data that have been split into a training and a validation set then finally use that model to do the prediction.
+
+Setup
+# Prepare the environment
+
+library(lattice, quietly = TRUE, warn.conflicts = FALSE, verbose = FALSE)
+library(ggplot2, quietly = TRUE, warn.conflicts = FALSE, verbose = FALSE)
+library(caret, quietly = TRUE, warn.conflicts = FALSE, verbose = FALSE)
+## Warning: package 'caret' was built under R version 3.4.3
+library(survival, quietly = TRUE, warn.conflicts = FALSE, verbose = FALSE)
+library(splines, quietly = TRUE, warn.conflicts = FALSE, verbose = FALSE)
+library(parallel, quietly = TRUE, warn.conflicts = FALSE, verbose = FALSE)
+library(gbm, quietly = TRUE, warn.conflicts = FALSE, verbose = FALSE)
+## Warning: package 'gbm' was built under R version 3.4.3
+## Loaded gbm 2.1.3
+setwd("C:\\Data Science\\Coursera\\Machine Learning")
+set.seed(12182017)
+
+# Load the data files
+inTrain <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+Data Manipulation
+Here columns and rows that don’t contribute to an accurate model have been removed. This included columns that were almost entirely blank or NA as well as columns such as the subject name, the row number, the ‘window’ variables and the timestamps.
+
+# Filter out rows and columns that we don't seem to need...
+dim(inTrain)
+## [1] 19622   160
+inTrain <- inTrain[inTrain$new_window == "no",]
+inTrain <- inTrain[,c(10,11,37:49,60:68,84:86,102,113:124,140,151:160)]
+dim(inTrain)
+## [1] 19216    51
+In order to cross validate the data, we break the training set into two separate sets. The first is the training set which contains 75% of the original training data. The second set is the validation set which consists of the remaining 25% of the original training data.
+
+The original ‘testing’ data will be used for the predictions once a model has been selected.
+
+# Partition Training set into training and validation for Cross Validation
+TrainPart = createDataPartition(inTrain$classe, p = 3/4)[[1]]
+validation <- inTrain[-TrainPart,]
+training <- inTrain[TrainPart,]
+dim(training)
+## [1] 14414    51
+dim(validation)
+## [1] 4802   51
+In order to determine which model to use, I created 5 different models. The first, which I ended up choosing, used a random forest. I also tried Boosted Trees, Linear Descriminant, Partitioning and a combo of all of the above. The accuracy of the combo of all models was the best of the five, but not significantly better than plain random forest, so I discarded it for simplicity sake. The other three methods were significantly less accurate than random forest.
+
+Model Building and Selection
+The random forest is built using the training data and then cross validated with the validation data. The classe variable is the outcome and all of the remaining variables are the predictors. I first trained the model without any cross validation other than the separate training and validation datasets. I then retrained the model using the trainControl parameter set to trainControl(method = “cv”, number = 4)). Dividing this dataset into 4 folds didn’t improve accuracy, but it did cut the runtime of the model training by about 90%.
+
+modrf <- train(classe~., method = "rf", data = training, trControl = trainControl(method = "cv", number = 4))
+predrf <- predict(modrf,validation)
+Analysis
+The accuracy of this model is very good.
+
+# Random Forest
+confusionMatrix(predrf,validation$classe)$overall['Accuracy']
+##  Accuracy 
+## 0.9908372
+Out of Sample Error
+The out of sample error rate is 1 - the accuracy of the model. So in this case it is 0.0091628
+
+Results of prediction
+Using the trained model, we now predict the classe variable from the testing data set. Here are the resulting values.
+
+predrfTest <- predict(modrf,testing)
+predrfTest
+##  [1] B A B A A E D B A A B C B A E E A B B B
+## Levels: A B C D E
+Conclusion
+The random forest did pretty well at predicting the correct values with a high rate of accuracy.
